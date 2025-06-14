@@ -12,7 +12,7 @@ We propose a Smoothed Quantile Bivariate Triangulation method (SQBiT), which com
 
 ### Dependencies
 
-Note that our codes heavily depend on the packages Rcpp, RcppArmadillo, and BPST. In particular, the linear algebra is built on Rcpp. The packages Rcpp and RcppArmadillo can be downloaded using `install.packages()' in R. The package BPST can be downloaded from Github using `devtools::install_github('FIRST-Data-Lab/BPST')'.
+Note that our codes heavily depend on the packages Rcpp, RcppArmadillo, and BPST. In particular, the linear algebra is built on Rcpp. The packages Rcpp and RcppArmadillo can be downloaded using `install.packages()' in R. The package BPST can be downloaded from Github using `devtools::install_github(FIRST-Data-Lab/BPST)'.
 
 ### Main Functions
 
