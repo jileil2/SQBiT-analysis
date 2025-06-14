@@ -12,35 +12,35 @@ We propose a Smoothed Quantile Bivariate Triangulation method (SQBiT), which com
 
 ### Dependencies
 
-Note that our codes heavily depend on the packages Rcpp, RcppArmadillo, and BPST. In particular, the linear algebra is built on Rcpp. The packages Rcpp and RcppArmadillo can be downloaded using `install.packages()' in R. The package BPST can be downloaded from Github using `devtools::install_github(FIRST-Data-Lab/BPST)'.
+Note that our codes heavily depend on the packages Rcpp, RcppArmadillo, and BPST. In particular, the linear algebra is built on Rcpp. The packages Rcpp and RcppArmadillo can be downloaded using `install.packages()` in R. The package BPST can be downloaded from Github using `devtools::install_github(FIRST-Data-Lab/BPST)`.
 
 ### Main Functions
 
 There are several main functions for implementing SQBiT. 
 
-1. `SQBiT.R' contains the codes for SQBiT for a given penalization parameter.
-2. `tune.lambda.R' contains the codes for SQBiT with penalization parameters selected by GACV.
-3. `smqsvcm_admm.wb.R' contains the codes for wild bootstrap inference of SQBiT
-4. `cv.pred.SQBiT.R' contains the codes for computing k-fold cross-validation prediction error of SQBiT for given bandwidth h and a penalization parameter.
+1. `SQBiT.R` contains the codes for SQBiT for a given penalization parameter.
+2. `tune.lambda.R` contains the codes for SQBiT with penalization parameters selected by GACV.
+3. `smqsvcm_admm.wb.R` contains the codes for wild bootstrap inference of SQBiT
+4. `cv.pred.SQBiT.R` contains the codes for computing k-fold cross-validation prediction error of SQBiT for given bandwidth h and a penalization parameter.
 
 ### Simulation Examples
 
 In the Simulation Examples folder, it contains the necessary codes and data for simulation examples. Note that
 
-1. `plm_sim_t.R' contains the codes for the simulation study with homoskedastic t(2) error.
+1. `plm_sim_t.R` contains the codes for the simulation study with homoskedastic t(2) error.
 
-2. `plm_sim_t_heter.R' contains the codes for the simulation study with heteroskedastic t(2) error.
+2. `plm_sim_t_heter.R` contains the codes for the simulation study with heteroskedastic t(2) error.
 
-3. `plm_sim_mn_heter.R' contains the codes for the simulation study with heteroskedastic mixture normal error.
+3. `plm_sim_mn_heter.R` contains the codes for the simulation study with heteroskedastic mixture normal error.
 
 
 ### Simulation Examples
 
 In the Application Examples folder, it contains the necessary codes and data for US mortality data analysis. Note that
 
-1. `main_tau50.R' contains the codes for estimating the quantile spatial model for the median case.
+1. `main_tau50.R` contains the codes for estimating the quantile spatial model for the median case.
 
-2. `main_tau75.R' contains the codes for estimating the quantile spatial model for the third quartile case.
+2. `main_tau75.R` contains the codes for estimating the quantile spatial model for the third quartile case.
 
 ## Contact
 If you have any questions about the codes, please contact jileil2@gwmail.gwu.edu.
