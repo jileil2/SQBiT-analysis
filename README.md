@@ -1,6 +1,7 @@
 # Smoothed Quantile Regression for Spatial Data
 
-In this work, we propose a procedure for estimating the quantile spatial model in spatial data analysis. 
+In this work, we develop a procedure for fitting the partially linear quantile spatial model.
+
 
 ## Quantile Spatial Model (QSM) (Why it is useful?)
 Spatial data often exhibit both spatial heterogeneity and tail heterogeneity. In this work, we develop an estimator for a model we call the quantile spatial model. In this model, the conditional quantile function is expressed as a linear combination of covariates with both constant and spatially varying effects. The varying effects are allowed to change smoothly across space. This framework offers considerable flexibility and interpretability, as it captures how the effects of covariates vary across both spatial locations and quantile levels.
