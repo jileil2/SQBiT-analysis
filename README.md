@@ -13,7 +13,7 @@ We propose a Smoothed Quantile Bivariate Triangulation method (SQBiT), which com
 
 We discuss the inference of the QSM for constant and varying coefficients separately. 
 
-1. For varying coefficients, we develop an interval estimation procedure based on wild bootstrap. Its implementation is based on `smqsvcm_admm.wb.R`, see Section Main Functions.
+1. For varying coefficients, we develop a confidence interval construction procedure based on wild bootstrap. Its implementation is based on `smqsvcm_admm.wb.R`, see Section Main Functions.
 2. For constant coefficients, we develop interval estimation procedures based on asymptotic normality and wild bootstrap. The former is based on `SQBiT.R` or `tune.lambda.R` while the latter is based on `smqsvcm_admm.wb.R`. See Section Main Functions for details.
 
 ## Instructions for use
