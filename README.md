@@ -41,7 +41,7 @@ In the Simulation Examples folder, it contains the necessary codes and data for 
 3. `plm_sim_mn_heter.R` contains the codes for the simulation study with heteroskedastic mixture normal error.
 
 
-### Simulation Examples
+### Application Examples
 
 In the Application Examples folder, it contains the necessary codes and data for US mortality data analysis. Note that
 
