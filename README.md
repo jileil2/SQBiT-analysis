@@ -20,7 +20,7 @@ We discuss the inference of the QSM for constant and varying coefficients separa
 
 ### Dependencies
 
-Note that our codes heavily depend on the packages Rcpp, RcppArmadillo, Triangulation, and BPST. In particular, the linear algebra is built on Rcpp. The packages Rcpp and RcppArmadillo can be downloaded using `install.packages()` in R. The package BPST can be downloaded from Github using `devtools::install_github(funstatpackage/Triangulation)`. The package BPST can be downloaded from Github using `devtools::install_github(FIRST-Data-Lab/BPST)`.
+Note that our codes heavily depend on the packages Rcpp, RcppArmadillo, Triangulation, and BPST. In particular, the linear algebra is built on Rcpp. The packages Rcpp and RcppArmadillo can be downloaded using `install.packages()` in R. The package Triangulation can be downloaded from Github using `devtools::install_github(funstatpackage/Triangulation)`. The package BPST can be downloaded from Github using `devtools::install_github(FIRST-Data-Lab/BPST)`.
 
 ### Main Functions
 
