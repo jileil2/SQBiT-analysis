@@ -31,19 +31,19 @@ sourceCpp('functions/test.cpp')
 
 
 # Quantile level
-tau <- 0.5
+tau <- 0.90
 
 # Load matrices for triangles (Tr) and vertices (V)
 Tr <- as.matrix(read.csv('Tr_mort3.csv', header = TRUE))
 V <- as.matrix(read.csv('V_mort3.csv', header = TRUE))
 bbound <- as.matrix(read.csv('brusa.csv', header = FALSE))
-head(bbound)
+head(bbound) 
 
 # Tr = VT$Tr
 # V = VT$V
 
 # Load data
-# set working directory 
+# set working directory
 Mort_data <- read.csv('Data_mortality.csv', header = T)
 S_pop <- as.matrix(read.csv('Mortal_pop_location_d025.csv', header = T))
 
@@ -80,23 +80,24 @@ B <- B0$B
 BQ2 <- as.matrix(B %*% Q2) 
 
 
+
 ############### forward selection
 cv.sets <- SQBiT_forward(tau = tau, Y = Y * 10, C = X[, -1], Q2 = Q2,
                          lambda_start = 1e-4, B = B,
                          lambda_end = 1e1, P = P,
                          lambda.scale = 100)
 
-### constant: Violent, Urban
+### constant: Urban
 print(colnames(X)[cv.sets$constant + 1])
 
-### varying: Affluence, Disadvantage
+### varying: Affluence, Disadvantage, Violent
 print(colnames(X)[cv.sets$varying + 1])
 
-### constant covariates
-C <- as.matrix(X[, (c(3, 4) + 1)])
-X <- X[, -(c(3, 4) + 1)]
-X <- as.matrix(X)
 
+### constant covariates
+C <- as.matrix(X[, c(1, 3, 4) + 1])
+X <- X[, -(c(1, 3, 4) + 1)]
+X <- as.matrix(X)
 
 
 
@@ -106,16 +107,16 @@ lengths <- c()
 for (c in cs) {
   
   ### cross-validation for h
-  h.de <- c * tau * (1 - tau) * ((2 + dim(Q2)[2] * 3 + log(n)) / n) ^ (2/5)
+  h.de <- c * tau * (1 - tau) * ((3 + dim(Q2)[2] * 2 + log(n)) / n) ^ (2/5)
   
   
   ### tuning parameter selection for smoothed QSVCM
-  lambda_SQBiT <- SQBiT_cv(Y = Y, X = X, C = C,  
-                           P = P, B = B, Q2 = Q2,  
-                           h = h.de, tau = tau, 
-                           lambda_start = 1e-4, lambda_end = 1e1,
-                           nlambda = 10, new.nlambda = 10, 
-                           lambda.scale = 100) 
+  lambda_SQBiT <- SQBiT_tune(Y = Y, X = X, C = C,  
+                             P = P, B = B, Q2 = Q2,  
+                             h = h.de, tau = tau, 
+                             lambda_start = 1e-4, lambda_end = 1e1,
+                             nlambda = 10, new.nlambda = 10, 
+                             lambda.scale = 100) 
   
   mod.sm.ie <- SQBiT(h = h.de, C = C, Y = Y, X = X, B = B, P = P, Q2 = Q2,
                      tau = tau, lambda = matrix(lambda_SQBiT$lambda, ncol = ncol(X)), 
@@ -138,14 +139,13 @@ for (c in cs) {
 
 plot(cs, lengths, xlab = '$c$', ylab = 'Length',
      ylim = c(0, 0.90),
-     type = 'b', col = 'magenta',
-     main = 'Sensitivity Analysis ($\\tau = 0.50$)')
+     type = 'b', col = 'indianred1',
+     main = 'Sensitivity Analysis ($\\tau = 0.90$)')
 
 
 
-############### Bandwidth h
-h.de <- 3 * tau * (1 - tau) * ((2 + dim(Q2)[2] * 3 + log(n)) / n) ^ (2/5)
-
+### bandwidth
+h.de <- 3 * tau * (1 - tau) * ((3 + dim(Q2)[2] * 2 + log(n)) / n) ^ (2/5)
 
 
 ### tuning parameter selection for SQBiT
@@ -156,10 +156,12 @@ lambda_SQBiT <- SQBiT_cv(Y = Y, X = X, C = C,
                          nlambda = 10, new.nlambda = 10, 
                          lambda.scale = 100) 
 
+
 # tensor product QR
 tpqr.mod <- tpqr.plm(Y = Y, C = C, X = X, S = S, d = 3, tau = tau,
                      c0 = 1.5, c1 = 3.5, nc = 6) 
- 
+
+
 
 # boundary of US
 SS_pop <- S_pop[Ind_all, ]
@@ -176,9 +178,11 @@ basis <- do.call(rbind, lapply(1:nrow(SS_pop), function(i) kronecker(B1[i,], B2[
 jn <- ncol(basis)
 
 # coefficient plot (population)
+p <- ncol(X)
+Jn <- dim(BQ2)[2] 
 
-################################################# interval estimation
 
+# interval estimation
 mod.sm.ie <- SQBiT(h = h.de, C = C, Y = Y, X = X, B = B, P = P, Q2 = Q2,
                    tau = tau, lambda = matrix(lambda_SQBiT$lambda, ncol = ncol(X)), 
                    var.j = FALSE, adaptive.h = FALSE,
@@ -189,26 +193,27 @@ y.fit <- C %*% matrix(mod.sm.ie$eta)
 for (j in 1:ncol(X)) {
   y.fit <- y.fit + X[, j] * mod.sm.ie$beta[, j]
 }
-write.csv(cbind(S, y.fit), 'fit_tau50.csv')
+write.csv(cbind(S, y.fit), 'fit_tau90.csv')
 
-############################### wild bootstrap for interval estimation of varying coefficient
+# wild bootstrap for interval estimation of varying coefficient
 set.seed(666)
-                      
+
 mod.sm.wb <- SQBiT_wb(h = h.de, tau = tau, Y = Y, C = C, X = X, P = P, B = B, Q2 = Q2, eta.j = .32,
                       lambda = matrix(lambda_SQBiT$lambda, ncol = ncol(X)), Br = 500, 
                       biascorr = TRUE, BQ2.eva = BQ2_pop, max.iter = 200, compute.vc = TRUE,
                       eta.hat = mod.sm.ie$eta, gamma.hat = mod.sm.ie$gamma)
 
-
+# interval estimates
 mod.sm.wb$cis2 # constant coefficient
 mhat_all.sm_lb <- mod.sm.wb$betas.lb # lower bound of varying coefficient
 mhat_all.sm_ub <- mod.sm.wb$betas.ub # upper bound of varying coefficient
 
-p <- ncol(X)
-Jn <- dim(BQ2)[2] 
+
+
+################### heat-map
+
 mhat_all.sm <- c()
 mhat.tp <- c()
-mod.sm.gamma <- mod.sm.ie$gamma
 for(i in 1:p){ 
   mhat_all.sm <- cbind(mhat_all.sm, BQ2_pop %*% mod.sm.ie$gamma[(1 + (i - 1) * Jn):(Jn * i)])
   mhat.tp <- cbind(mhat.tp, basis %*% tpqr.mod$gamma[(jn * (i - 1) + 1):(jn * i)])
@@ -228,33 +233,25 @@ uvpop <- cbind(u, v)
 # match
 Index <- match(data.frame(t(SS_pop)), data.frame(t(uvpop)))
 
-
 # limits
 zlims <- rbind(c(.5, 1.5),
-               c(-.15, .15),
                c(-.15, .15))
 
 
-# coefficient plots
-options(tikzLatexPackages 
-        = c(getOption( "tikzLatexPackages" ),
-            "\\usepackage{amsmath,amsfonts,amsthm, palatino, mathpazo}"))
-
 # SQBiT
-for (i in 1:3) {
-  tikz(paste0('heat50beta', i, 'sm.tex'), width = 6, height = 3, standAlone = TRUE)
+for (i in 1:2) {
+  tikz(paste0('heat90beta', i, 'sm.tex'), width = 6, height = 3, standAlone = TRUE)
   mhat_all.sm <- as.matrix(mhat_all.sm)
   Zpop <- matrix(NaN, dim(uvpop)[1], dim(mhat_all.sm)[2])
   Zpop[Index, ] <- mhat_all.sm
   Y0 <- matrix(rep(NA, n1 * n2), ncol = 1)
   Y0[Index] <- Zpop[Index, i] # for the first one
   index <- point.in.polygon(u, v, boundary[, 1], boundary[, 2])
-  Y0[index == 0] <- NA 
+  Y0[index == 0] <- NA
   
   
   Y0[which(Y0 > zlims[i, 2])] <- zlims[i, 2]
   Y0[which(Y0 < zlims[i, 1])] <- zlims[i, 1]
-  
   
   # coefficient plot
   alpha_fitted <- data.frame(u, v, Y0)
@@ -270,8 +267,8 @@ for (i in 1:3) {
   dev.off()
 }
 
-for (i in 1:3) {
-  tikz(paste0('heat50beta', i, 'tps.tex'), width = 6, height = 3, standAlone = TRUE)
+for (i in 1:2) {
+  tikz(paste0('heat90beta', i, 'tps.tex'), width = 6, height = 3, standAlone = TRUE)
   mhat.tp <- as.matrix(mhat.tp)
   Zpop <- matrix(NaN, dim(uvpop)[1], dim(mhat.tp)[2])
   Zpop[Index, ] <- mhat.tp
@@ -280,9 +277,8 @@ for (i in 1:3) {
   index <- point.in.polygon(u, v, boundary[, 1], boundary[, 2])
   Y0[index == 0] <- NA
   
-  # color 
-  Y0[which(Y0 > zlims[i, 2])] <- zlims[i, 2] 
-  Y0[which(Y0 < zlims[i, 1])] <- zlims[i, 1] 
+  Y0[which(Y0 > zlims[i, 2])] <- zlims[i, 2]
+  Y0[which(Y0 < zlims[i, 1])] <- zlims[i, 1]
   
   # coefficient plot
   alpha_fitted <- data.frame(u, v, Y0)
@@ -298,10 +294,9 @@ for (i in 1:3) {
   dev.off()
 }
 
-
 # lower bound
-for (i in 1:3) {
-  tikz(paste0('heat50beta', i, 'smlb.tex'), width = 6, height = 3, standAlone = TRUE)
+for (i in 1:2) {
+  tikz(paste0('heat90beta', i, 'smlb.tex'), width = 6, height = 3, standAlone = TRUE)
   mhat_all.sm_lb <- as.matrix(mhat_all.sm_lb)
   Zpop <- matrix(NaN, dim(uvpop)[1], dim(mhat_all.sm_lb)[2])
   Zpop[Index, ] <- mhat_all.sm_lb
@@ -309,10 +304,11 @@ for (i in 1:3) {
   Y0[Index] <- Zpop[Index, i] # for the first one
   index <- point.in.polygon(u, v, boundary[, 1], boundary[, 2])
   Y0[index == 0] <- NA
-   
+  
   
   Y0[which(Y0 > zlims[i, 2])] <- zlims[i, 2]
   Y0[which(Y0 < zlims[i, 1])] <- zlims[i, 1]
+  
   
   # coefficient plot
   alpha_fitted <- data.frame(u, v, Y0)
@@ -329,8 +325,8 @@ for (i in 1:3) {
 }
 
 # upper bound
-for (i in 1:3) {
-  tikz(paste0('heat50beta', i, 'smub.tex'), width = 6, height = 3, standAlone = TRUE)
+for (i in 1:2) {
+  tikz(paste0('heat90beta', i, 'smub.tex'), width = 6, height = 3, standAlone = TRUE)
   mhat_all.sm_ub <- as.matrix(mhat_all.sm_ub)
   Zpop <- matrix(NaN, dim(uvpop)[1], dim(mhat_all.sm_ub)[2])
   Zpop[Index, ] <- mhat_all.sm_ub
@@ -342,7 +338,6 @@ for (i in 1:3) {
   
   Y0[which(Y0 > zlims[i, 2])] <- zlims[i, 2]
   Y0[which(Y0 < zlims[i, 1])] <- zlims[i, 1]
-  
   
   # coefficient plot
   alpha_fitted <- data.frame(u, v, Y0)
@@ -357,3 +352,4 @@ for (i in 1:3) {
   US(xlim = c(-124.7, -67.1), ylim = c(25.2, 49.4), add = TRUE, lty = 2)
   dev.off()
 }
+

@@ -13,33 +13,17 @@ library('fastmatrix')
 library('quantreg')
 library('MultiRNG')
 
-# working directory
+### directory
 setwd(this.path::here())
 
-## load functions  
-source('G.u.R')
-source('ell.uh.R')
-source('x1.R')
-source('beta1.R')
-source('tune.lambda.R') 
-source('tune.lambda.qsvcm.R')
-source('SQBiT.R')  
-source('tpqr.plm.R')   
-source('AInv.R')
-source('rG.R')
-source('smqsvcm_admm.wb.R') 
-source('QBiT.R') 
-source('stoper.R')
-source('rhotau.R')
-source('SQBiT_tune.R')
-source('cv.pred.SQBiT.R')
+############################# source functions
+file.sources <- paste0('functions/', list.files('functions', pattern = '*.R'))
+sapply(file.sources, source, .GlobalEnv)
 
-
-# c++ matrix inversion
+############################# source some Rcpp functions
 Rcpp::cppFunction("arma::mat armaInv(const arma::mat & x) { return arma::inv(x); }",
                   depends = "RcppArmadillo")
-# c++ matrix multiplication
-sourceCpp('test.cpp')
+sourceCpp('functions/test.cpp')
 
 
 # population
@@ -54,9 +38,9 @@ S <- as.matrix(as.data.frame(S))
 
 #### Triangulation
 
-Tr <- as.matrix(read.csv('Tr_1.csv', header = FALSE))     ########### change Tr_2.csv for Triangulation 2
+Tr <- as.matrix(read.csv('Tr_1.csv', header = TRUE))     ########### change Tr_2.csv for Triangulation 2
 # vertices of triangulation
-V <- as.matrix(read.csv('V_1.csv', header = FALSE))       ########### change V_2.csv for Triangulation 2
+V <- as.matrix(read.csv('V_1.csv', header = TRUE))       ########### change V_2.csv for Triangulation 2
 
 # population
 N.all <- nrow(pop.all)
@@ -100,18 +84,17 @@ K <- B0.pop$K
 P <- t(Q2) %*% K %*% Q2
 
 # simulation
-n <- 2500                               ########### change n = 1000 for n = 1000
+n <- 2000                               ########### change n = 3000 for n = 3000
 nsim <- 200
 set.seed(123)
 seeds <- sample(1:1000, nsim)
-tau <- 0.5                              ########### change tau = 0.75 for tau = 0.75
+tau <- 0.5                              ########### change tau = 0.75, 0.90 for tau = 0.75, 0.90
 
 # set a seed
 set.seed(123)
 
-# simulating C
+########################### setup for constant covariates
 eta <- matrix(c(1, 1, 1))
-# covariates
 Sigma <- matrix(0, 3, 3)
 for (i in 1:3) {
   for (j in 1:3) {
@@ -120,11 +103,11 @@ for (i in 1:3) {
 }
 
 # quantile
-Finv <- qt(tau, df = 2) 
+Finv <- qt(tau, df = 3) / 3
 colnames(pop.r) <- c('u', 'v', 'b0', 'b1')
 
 
-################################################# Sensitivity Analysis
+################################################# Sensitivity Analysis (Section 2.4 in the Supplementary Materials)
 cs <- seq(from = 1, to = 10, length.out = 10)
 mses <- c()
 
@@ -152,7 +135,7 @@ for (c in cs) {
                                 cov.mat = Sigma) * sqrt(3)
     C <- C - 0.5 * sqrt(3)
     X <- runif(n, -1, 1) 
-    Y <- beta0[, 1] + X * beta0[, 2] + C %*% eta + rt(n = n, 2)
+    Y <- beta0[, 1] + X * beta0[, 2] + C %*% eta + rt(n = n, 3) / 3
     X <- cbind(1, X)  
     # generate Bivariate spline basis 
     B <- B.pop[ind.s, ]
@@ -162,11 +145,11 @@ for (c in cs) {
     true.alpha.samp[, 2] <- true.alpha.samp[, 2] 
     
     # tuning for SQBiT
-    mod.SQBiT <- tune.lambda(Y = Y, X = X, C = C, max.iter = 100,
-                             P = P, B = B, Q2 = Q2, var.j.2 = FALSE, kernel = 'unif',
-                             h = h.c, tau = tau, lambda_start = 1e-4,  
-                             eta.j1 = .32, eta.j2 = .32, nlambda = 10, new.nlambda = 10, 
-                             lambda.scale = 100) 
+    mod.SQBiT <- SQBiT_gacv(Y = Y, X = X, C = C, max.iter = 100,
+                            P = P, B = B, Q2 = Q2, var.j = FALSE,
+                            h = h.c, tau = tau, lambda_start = 1e-4,  
+                            eta.j1 = .32, eta.j2 = .32, nlambda = 10, new.nlambda = 10, 
+                            lambda.scale = 100) 
     
     res.c <- rbind(res.c,  
                    c(norm(eta - mod.SQBiT$eta, '2') ^ 2 / 3,
@@ -181,20 +164,8 @@ for (c in cs) {
   
 }
 
-##################### plot
-par(mfrow = c(1, 2))
-plot(cs, mses[, 1],  
-     ylab = 'MSE', type = 'b', col = 'magenta',
-     xlab = '$c$', main = '$\\eta_{0.50}$') 
-abline(v = 7, col = 'deepskyblue', lty = 2)
-plot(cs, mses[, 3], 
-     main = '$\\beta_{1,0.50}(\\mathbf{s})$', 
-     type = 'b', col = 'indianred1',
-     xlab = '$c$', ylab = 'MISE') 
-abline(v = 7, col = 'deepskyblue', lty = 2)
 
-
-########################### Compare computing performance
+########################### Compare computing performance (Table 1, Section 3 in the main text)
 
 # bandwidth
 h <- 7 * tau * (1 - tau) * ((3 + dim(Q2)[2] * 2 + log(n)) / n) ^ (2/5)
@@ -218,7 +189,7 @@ for (i in 1:nsim) {
                               cov.mat = Sigma) * sqrt(3)
   C <- C - 0.5 * sqrt(3)
   X <- runif(n, -1, 1) 
-  Y <- beta0[, 1] + X * beta0[, 2] + C %*% eta + rt(n = n, 2)
+  Y <- beta0[, 1] + X * beta0[, 2] + C %*% eta + rt(n = n, 3) / 3
   X <- cbind(1, X)  
   # generate Bivariate spline basis 
   B <- B.pop[ind.s, ]
@@ -227,7 +198,9 @@ for (i in 1:nsim) {
   true.alpha.samp[, 1] <- true.alpha.samp[, 1] + Finv
   true.alpha.samp[, 2] <- true.alpha.samp[, 2] 
   
-  # tuning for QBiT
+  ########## tuning for QBiT
+  ########## change lambda_start = 1e-4 to lambda_start = 1e-1 when tau = 0.90
+  ########## change lambda.scale = 100 to lambda.scale = 10 when tau = 0.90
   tune.QBiT <- tune.lambda.qsvcm(y = Y, X = X, C = C, max.iter = 100,
                                  P = P, B = B, Q2 = Q2, var.j.2 = FALSE,
                                  tau = tau, 
@@ -236,19 +209,21 @@ for (i in 1:nsim) {
                                  nlambda = 10, new.nlambda = 10, 
                                  lambda.scale = 100) 
   
-  # tuning for smoothed QSVCM
-  tune.SQBiT <- tune.lambda(Y = Y, X = X, C = C, max.iter = 100,
-                            P = P, B = B, Q2 = Q2, var.j.2 = FALSE,
-                            h = h, tau = tau, 
-                            lambda_start = 1e-4, 
-                            lambda_end = 1e1, 
-                            zeta = 14,
-                            eta.j1 = .32, eta.j2 = .32, 
-                            nlambda = 10, new.nlambda = 10, 
-                            lambda.scale = 100, interval = FALSE, kernel = 'unif') 
+  ########## tuning for SQBiT
+  ########## change lambda_start = 1e-4 to lambda_start = 1e-1 when tau = 0.90
+  ########## change lambda.scale = 100 to lambda.scale = 10 when tau = 0.90
+  tune.SQBiT <- SQBiT_gacv(Y = Y, X = X, C = C, max.iter = 100,
+                           P = P, B = B, Q2 = Q2, var.j = FALSE,
+                           h = h, tau = tau, 
+                           lambda_start = 1e-4, 
+                           lambda_end = 1e1, 
+                           zeta = 10, 
+                           eta.j1 = .32, eta.j2 = .32, 
+                           nlambda = 10, new.nlambda = 10, 
+                           lambda.scale = 100, interval = FALSE) 
   
   
-  # tensor product QR
+  ########## tensor product QR
   tpqr.mod <- tpqr.plm(Y = Y, C = C, X = X, S = S, d = 3, tau = tau) 
   
   
@@ -293,7 +268,10 @@ tab <- as.data.frame(tab)
 xtable(tab)
  
 
-######################################### Coverage (5-fold CV)
+######################################### Coverage (Table 2 & 3 in Section 3)
+
+# bandwidth
+h <- 7 * tau * (1 - tau) * ((3 + dim(Q2)[2] * 2 + log(n)) / n) ^ (2/5)
 
 ## population varying coefficient
 BQ2.pop <- as.matrix(B.pop %*% Q2)
@@ -326,7 +304,7 @@ for (i in 1:nsim) {
                               cov.mat = Sigma) * sqrt(3)
   C <- C - 0.5 * sqrt(3)
   X <- runif(n, -1, 1) 
-  Y <- beta0[, 1] + X * beta0[, 2] + C %*% eta + rt(n = n, 2)
+  Y <- beta0[, 1] + X * beta0[, 2] + C %*% eta + rt(n = n, 3) / 3
   X <- cbind(1, X)  
   # generate Bivariate spline basis 
   B <- B.pop[ind.s, ]
@@ -337,29 +315,37 @@ for (i in 1:nsim) {
   
   
   ####### tuning for SQBiT (5-fold CV)
-  lambda_SQBiT <- SQBiT_tune(Y = Y, X = X, C = C,  
-                             P = P, B = B, Q2 = Q2,  
-                             h = h, tau = tau, 
-                             lambda_start = 1e-4, lambda_end = 1e1,
-                             nlambda = 10, new.nlambda = 10, 
-                             lambda.scale = 100)  
+  lambda_SQBiT <- SQBiT_cv(Y = Y, X = X, C = C,  
+                           P = P, B = B, Q2 = Q2,  
+                           h = h, tau = tau, eta.j1 = .32, eta.j2 = .32,
+                           lambda_start = 1e-4, lambda_end = 1e1,
+                           nlambda = 10, new.nlambda = 10, 
+                           lambda.scale = 100)  
+  
   
   ###### Point Estimation
-  mod_SQBiT <- SQBiT(Y = Y, X = X, C = C, 
-                     P = P, B = B, Q2 = Q2, tau = tau,  
-                     lambda = lambda_SQBiT$lambda, h = h, adaptive.h = FALSE,
-                     gacv.compute = FALSE, interval = TRUE) 
+  mod_SQBiT <- tryCatch({
+    SQBiT(Y = Y, X = X, C = C, 
+          P = P, B = B, Q2 = Q2, tau = tau,  
+          lambda = lambda_SQBiT$lambda, h = h, adaptive.h = FALSE,
+          gacv.compute = FALSE, interval = TRUE) 
+  }, error = function(e) {
+    SQBiT(Y = Y, X = X, C = C, 
+          P = P, B = B, Q2 = Q2, tau = tau,  
+          lambda = lambda_SQBiT$lambda, h = h, adaptive.h = FALSE,
+          gacv.compute = FALSE, interval = FALSE) 
+  })
   
   
   ##### asymptotic interval
   cis1 <- mod_SQBiT$cis
   
   ##### wild bootstrap
-  mod_SQBiT.wb <- smqsvcm_admm.wb(h = h, tau = tau, Y = Y, C = C, X = X, P = P, B = B, Q2 = Q2, 
-                                  eta.j = .32, var.j = FALSE, biascorr = TRUE,
-                                  lambda = lambda_SQBiT$lambda, Br = 500, 
-                                  compute.vc = TRUE, BQ2.eva = BQ2.pop, 
-                                  gamma.hat = c(mod_SQBiT$eta, mod_SQBiT$gamma))
+  mod_SQBiT.wb <- SQBiT_wb(h = h, tau = tau, Y = Y, C = C, X = X, P = P, B = B, Q2 = Q2, 
+                           eta.j = .32, var.j = FALSE, biascorr = TRUE,
+                           lambda = lambda_SQBiT$lambda, Br = 500, 
+                           compute.vc = TRUE, BQ2.eva = BQ2.pop, 
+                           eta.hat = mod_SQBiT$eta, gamma.hat = mod_SQBiT$gamma)
   cis2 <- mod_SQBiT.wb$cis
   
   # varying coefficient
@@ -380,8 +366,10 @@ for (i in 1:nsim) {
     length1 <- c(length1, cis1[j, 2] - cis1[j, 1]) 
     length2 <- c(length2, cis2[j, 2] - cis2[j, 1])  
   } 
-  covs1 <- rbind(covs1, cov1) 
-  lengths1 <- rbind(lengths1, length1) 
+  if (length(cov1) > 0) {
+    covs1 <- rbind(covs1, cov1) 
+    lengths1 <- rbind(lengths1, length1) 
+  }
   covs2 <- rbind(covs2, cov2) 
   lengths2 <- rbind(lengths2, length2)  
   cat("iteration = ", i, "\n")
@@ -400,105 +388,6 @@ c(apply(covs2, 2, sd) * 100, apply(lengths2, 2, sd) * 100) / sqrt(nsim)
 ## varying coefficient
 mean(apply(all_all_Beta2, 1, mean)) 
 
-######################################### Coverage (GACV)
-
-## population varying coefficient
-BQ2.pop <- as.matrix(B.pop %*% Q2)
-beta.pop <- pop.r[, c('b0', 'b1')]
-beta.pop[, 1] <- beta.pop[, 1] + Finv
-beta.pop[, 2] <- beta.pop[, 2]
-
-## coverage for VC
-all_all_Beta2 <- c() 
-
-## coverage for constant
-covs1 <- c()
-lengths1 <- c() 
-covs2 <- c()
-lengths2 <- c()  
-
-for (i in 1:nsim) {
-  
-  
-  set.seed(seeds[i])
-  ind.s <- sample(1:Npop, n)
-  data <- as.matrix(pop.r[ind.s, ])
-  beta0 <- data[, c('b0', 'b1')]
-  
-  # locations
-  S <- data[, c(1, 2)]
-  
-  # constant covariates
-  C <- draw.d.variate.uniform(no.row = n,
-                              d = 3,
-                              cov.mat = Sigma) * sqrt(3)
-  C <- C - 0.5 * sqrt(3)
-  X <- runif(n, -1, 1)
-  Y <- beta0[, 1] + X * beta0[, 2] + C %*% eta + rt(n = n, 2)
-  X <- cbind(1, X)  
-  # generate Bivariate spline basis 
-  B <- B.pop[ind.s, ]
-  # alpha
-  true.alpha.samp <- beta0
-  true.alpha.samp[, 1] <- true.alpha.samp[, 1] + Finv
-  true.alpha.samp[, 2] <- true.alpha.samp[, 2]
-  
-  
-  
-  ##### GACV
-  mod_SQBiT <- tune.lambda(Y = Y, X = X, C = C, max.iter = 100,
-                           P = P, B = B, Q2 = Q2, var.j.2 = FALSE,
-                           h = h, tau = tau, lambda_start = 1e-4, zeta = 14,
-                           eta.j1 = .32, eta.j2 = .32, nlambda = 10, new.nlambda = 10, 
-                           lambda.scale = 100, interval = TRUE, kernel = 'unif')  
-  cis1 <- mod_SQBiT$cis2
-  
-  ##### wild bootstrap
-  mod_SQBiT.wb <- smqsvcm_admm.wb(h = h, tau = tau, Y = Y, C = C, X = X, P = P, B = B, Q2 = Q2, 
-                                  eta.j = .32, var.j = FALSE, biascorr = TRUE,
-                                  lambda = mod_SQBiT$lambdac, Br = 500, 
-                                  compute.vc = TRUE, BQ2.eva = BQ2.pop, 
-                                  gamma.hat = mod_SQBiT$gamma)
-  cis2 <- mod_SQBiT.wb$cis 
-  
-  # varying coefficient
-  vc.lb <- bs$betas.lb
-  vc.ub <- bs$betas.ub 
-  
-  all_Beta2 <- (vc.lb[, 2] < beta.pop[, 2]) & (vc.ub[,2] > beta.pop[, 2])
-  all_all_Beta2 <- cbind(all_all_Beta2, all_Beta2) 
-  
-  # constant 
-  cov1 <- c()  
-  length1 <- c()
-  cov2 <- c()  
-  length2 <- c() 
-  for (j in 1:3) { 
-    cov1 <- cbind(cov1, ifelse(eta[j] >= cis1[j, 1] & eta[j] <= cis1[j, 2], 1, 0)) 
-    cov2 <- cbind(cov2, ifelse(eta[j] >= cis2[j, 1] & eta[j] <= cis2[j, 2], 1, 0))  
-    length1 <- c(length1, cis1[j, 2] - cis1[j, 1]) 
-    length2 <- c(length2, cis2[j, 2] - cis2[j, 1])  
-  } 
-  covs1 <- rbind(covs1, cov1) 
-  lengths1 <- rbind(lengths1, length1) 
-  covs2 <- rbind(covs2, cov2) 
-  lengths2 <- rbind(lengths2, length2)  
-  
-  
-  cat("iteration = ", i, "\n")
-} 
-
-
-## constant
-c(apply(covs1, 2, mean) * 100, apply(lengths1, 2, mean) * 100) 
-c(apply(covs1, 2, sd) * 100, apply(lengths1, 2, sd) * 100) / sqrt(nsim) 
-
-c(apply(covs2, 2, mean) * 100, apply(lengths2, 2, mean) * 100) 
-c(apply(covs2, 2, sd) * 100, apply(lengths2, 2, sd) * 100) / sqrt(nsim) 
-
-
-## varying coefficient
-mean(apply(all_all_Beta2, 1, mean)) 
 
 ############################################
 ############################################ heatmap
@@ -513,7 +402,6 @@ options(tikzLatexPackages
             "\\usepackage{amsmath,amsfonts,amsthm, palatino, mathpazo}"))
 
 # boundary of horseshoe
-setwd('~/Desktop/Research/Quantile Regression/')
 boundary <- read.csv('bb_horse.csv')
 
 # prediction
@@ -540,8 +428,8 @@ mhat <- c()
 mhat.sm <- c()
 mhat.tp <- c() 
 for(i in 1:p){
-  mhat <- cbind(mhat, BQ2.pop %*% tune.qsvcm$gamma[(q + 1 + (i - 1) * Jn):(q + Jn * i)])
-  mhat.sm <- cbind(mhat.sm, BQ2.pop %*% tune.sqsvcm$gamma[(q + 1 + (i - 1) * Jn):(q + Jn * i)])
+  mhat <- cbind(mhat, BQ2.pop %*% tune.QBiT$gamma[(q + 1 + (i - 1) * Jn):(q + Jn * i)])
+  mhat.sm <- cbind(mhat.sm, BQ2.pop %*% tune.SQBiT$gamma[(1 + (i - 1) * Jn):(Jn * i)])
   mhat.tp <- cbind(mhat.tp, basis %*% tpqr.mod$gamma[(jn * (i - 1) + 1):(jn * i)]) 
 }
 

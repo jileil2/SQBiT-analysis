@@ -13,23 +13,24 @@ We propose a Smoothed Quantile Bivariate Triangulation method (SQBiT), which com
 
 We discuss the inference of the QSM for constant and varying coefficients separately. 
 
-1. For varying coefficients, we develop a confidence interval construction procedure based on wild bootstrap. Its implementation is based on `smqsvcm_admm.wb.R`, see Section Main Functions.
-2. For constant coefficients, we develop interval estimation procedures based on asymptotic normality and wild bootstrap. The former is based on `SQBiT.R` or `tune.lambda.R` while the latter is based on `smqsvcm_admm.wb.R`. See Section Main Functions for details.
+1. For varying coefficients, we develop a confidence interval construction procedure based on wild bootstrap. Its implementation is based on `SQBiT_wb.R`, see Section Main Functions.
+2. For constant coefficients, we develop interval estimation procedures based on asymptotic normality and wild bootstrap. The former is based on `SQBiT.R` or `tune.lambda.R` while the latter is based on `SQBiT_wb.R`. See Section Main Functions for details.
 
 ## Instructions for use
 
 ### Dependencies
 
-Note that our codes heavily depend on the packages Rcpp, RcppArmadillo, and BPST. In particular, the linear algebra is built on Rcpp. The packages Rcpp and RcppArmadillo can be downloaded using `install.packages()` in R. The package BPST can be downloaded from Github using `devtools::install_github(FIRST-Data-Lab/BPST)`.
+Note that our codes heavily depend on the packages Rcpp, RcppArmadillo, Triangulation, and BPST. In particular, the linear algebra is built on Rcpp. The packages Rcpp and RcppArmadillo can be downloaded using `install.packages()` in R. The package BPST can be downloaded from Github using `devtools::install_github(funstatpackage/Triangulation)`. The package BPST can be downloaded from Github using `devtools::install_github(FIRST-Data-Lab/BPST)`.
 
 ### Main Functions
 
 There are several main functions for implementing SQBiT. 
 
 1. `SQBiT.R` contains the codes for SQBiT for a given penalization parameter.
-2. `tune.lambda.R` contains the codes for SQBiT with penalization parameters selected by GACV.
-3. `smqsvcm_admm.wb.R` contains the codes for wild bootstrap inference of SQBiT
-4. `cv.pred.SQBiT.R` contains the codes for computing k-fold cross-validation prediction error of SQBiT for given bandwidth h and a penalization parameter.
+2. `SQBiT_gacv.R` contains the codes for SQBiT with penalization parameters selected by GACV.
+3. `SQBiT_cv.R` contains the codes for selecting penalization parameters selected by k-fold CV.
+4. `SQBiT_wb.R` contains the codes for wild bootstrap inference of SQBiT
+5. `SQBiT_forward.R` contains the codes for forward selection of QSM using GACV
 
 ### Simulation Examples
 
@@ -37,18 +38,20 @@ In the Simulation Examples folder, it contains the necessary codes and data for 
 
 1. `plm_sim_t.R` contains the codes for the simulation study with homoskedastic t(2) error.
 
-2. `plm_sim_t_heter.R` contains the codes for the simulation study with heteroskedastic t(2) error.
+2. `plm_sim_rect_skewnormal.R` contains the codes for the simulation study with heteroskedastic skew-normal error on a rectangular domain.
 
-3. `plm_sim_mn_heter.R` contains the codes for the simulation study with heteroskedastic mixture normal error.
+3. `plm_sim_skewnormal_ms.R` contains the codes for the simulation study for model selection with homoskedastic skew-normal error.
 
 
 ### Application Examples
 
 In the Application Examples folder, it contains the necessary codes and data for US mortality data analysis. Note that
 
-1. `main_tau50.R` contains the codes for estimating the quantile spatial model for the median case.
+1. `main_tau50.R` contains the codes for estimating the quantile spatial model for the quantile level 0.50.
 
-2. `main_tau75.R` contains the codes for estimating the quantile spatial model for the third quartile case.
+2. `main_tau75.R` contains the codes for estimating the quantile spatial model for the quantile level 0.75.
+
+3. `main_tau90.R` contains the codes for estimating the quantile spatial model for the quantile level 0.90.
 
 ## Contact
 If you have any questions about the codes, please contact jileil2@gwmail.gwu.edu.

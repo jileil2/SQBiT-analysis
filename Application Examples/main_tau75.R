@@ -12,41 +12,30 @@ library('RcppArmadillo')
 library('fastmatrix')
 library('quantreg')
 library('MultiRNG')
+library('fields')
+library('sf')
+library('sp')
+library('raster')
 
-# working directory
+### directory
 setwd(this.path::here())
 
-## load functions  
-source('G.u.R')
-source('ell.uh.R')
-source('x1.R')
-source('beta1.R')
-source('tune.lambda.R') 
-source('tune.lambda.qsvcm.R')
-source('SQBiT.R')  
-source('tpqr.plm.R')   
-source('AInv.R')
-source('rG.R')
-source('smqsvcm_admm.wb.R') 
-source('QBiT.R') 
-source('stoper.R')
-source('rhotau.R')
-source('SQBiT_tune.R')
-source('cv.pred.SQBiT.R')  
-source('cv.pred.tps.R') 
+############################# source functions
+file.sources <- paste0('functions/', list.files('functions', pattern = '*.R'))
+sapply(file.sources, source, .GlobalEnv)
 
-# c++ matrix inversion
+############################# source some Rcpp functions
 Rcpp::cppFunction("arma::mat armaInv(const arma::mat & x) { return arma::inv(x); }",
                   depends = "RcppArmadillo")
-# c++ matrix multiplication
-sourceCpp('test.cpp')
+sourceCpp('functions/test.cpp')
+
 
 # Quantile level
 tau <- 0.75
 
 # Load matrices for triangles (Tr) and vertices (V)
-Tr <- as.matrix(read.csv('Tr_mort2.csv', header = TRUE))
-V <- as.matrix(read.csv('V_mort2.csv', header = TRUE))
+Tr <- as.matrix(read.csv('Tr_mort3.csv', header = TRUE))
+V <- as.matrix(read.csv('V_mort3.csv', header = TRUE))
 bbound <- as.matrix(read.csv('brusa.csv', header = FALSE))
 head(bbound) 
 
@@ -55,7 +44,6 @@ head(bbound)
 
 # Load data
 # set working directory
-setwd('~/Desktop/Research/Quantile Regression/mortality_app/')
 Mort_data <- read.csv('Data_mortality.csv', header = T)
 S_pop <- as.matrix(read.csv('Mortal_pop_location_d025.csv', header = T))
 
@@ -79,21 +67,36 @@ X <- as.matrix(scale(X, scale = TRUE))
 X <- as.matrix(cbind(1, X))
 S <- cbind(Mort_data$Longtitude, Mort_data$Latitude)
 
+# sample size
+n <- length(Y)
 
 # Generate sample Bivariate spline basis 
 B0 <- basis(V, Tr, d, r, S)
 Ind <- B0$Ind.inside
 Y <- Y[Ind]
 X <- X[Ind, ]
-C <- as.matrix(X[, 3])
-X <- X[, -3]
-X <- as.matrix(X)
 S <- S[Ind,]
 B <- B0$B
 BQ2 <- as.matrix(B %*% Q2) 
 
-# sample size
-n <- length(Y)
+
+
+############### forward selection
+cv.sets <- SQBiT_forward(tau = tau, Y = Y * 10, C = X[, -1], Q2 = Q2,
+                         lambda_start = 1e-4, B = B,
+                         lambda_end = 1e1, P = P,
+                         lambda.scale = 100)
+
+### constant: Urban
+print(colnames(X)[cv.sets$constant + 1])
+
+### varying: Affluence, Disadvantage, Violent
+print(colnames(X)[cv.sets$varying + 1])
+
+### constant covariates
+C <- as.matrix(X[, c(1, 3, 4) + 1])
+X <- X[, -(c(1, 3, 4) + 1)]
+X <- as.matrix(X)
 
 ### sensitivity analysis
 cs <- seq(from = 1, to = 10, length.out = 10)
@@ -101,51 +104,55 @@ lengths <- c()
 for (c in cs) {
   
   ### cross-validation for h
-  h.de <- c * tau * (1 - tau) * ((1 + dim(Q2)[2] * 4 + log(n)) / n) ^ (2/5)
+  h.de <- c * tau * (1 - tau) * ((3 + dim(Q2)[2] * 2 + log(n)) / n) ^ (2/5)
   
   
   ### tuning parameter selection for smoothed QSVCM
-  lambda_SQBiT <- SQBiT_tune(Y = Y, X = X, C = C,  
-                             P = P, B = B, Q2 = Q2,  
-                             h = h.de, tau = tau, 
-                             lambda_start = 1e-4, lambda_end = 1e1,
-                             nlambda = 10, new.nlambda = 10, 
-                             lambda.scale = 100) 
+  lambda_SQBiT <- SQBiT_cv(Y = Y, X = X, C = C,  
+                           P = P, B = B, Q2 = Q2,  
+                           h = h.de, tau = tau, 
+                           lambda_start = 1e-4, lambda_end = 1e1,
+                           nlambda = 10, new.nlambda = 10, 
+                           lambda.scale = 100) 
   
   mod.sm.ie <- SQBiT(h = h.de, C = C, Y = Y, X = X, B = B, P = P, Q2 = Q2,
-                     tau = tau, lambda = matrix(lambda_SQBiT$lambda, ncol = 4), 
+                     tau = tau, lambda = matrix(lambda_SQBiT$lambda, ncol = ncol(X)), 
                      var.j = FALSE, adaptive.h = FALSE,
                      interval = TRUE) 
   
   # wild bootstrap for interval estimation of varying coefficient
   set.seed(666)
   
-  mod.sm.wb <- smqsvcm_admm.wb(h = h.de, tau = tau, Y = Y, C = C, X = X, P = P, B = B, Q2 = Q2, eta.j = .32,
-                               lambda = matrix(lambda_SQBiT$lambda, ncol = 4), 
-                               biascorr = TRUE,
-                               Br = 500, BQ2.eva = BQ2_pop, max.iter = 200, 
-                               compute.vc = TRUE,
-                               gamma.hat = c(mod.sm.ie$eta, mod.sm.ie$gamma))
+  mod.sm.wb <- SQBiT_wb(h = h.de, tau = tau, Y = Y, C = C, X = X, P = P, B = B, Q2 = Q2, eta.j = .32,
+                        lambda = matrix(lambda_SQBiT$lambda, ncol = ncol(X)), 
+                        biascorr = TRUE,
+                        Br = 500, BQ2.eva = BQ2_pop, max.iter = 200, 
+                        compute.vc = TRUE,
+                        eta.hat = mod.sm.ie$eta, gamma.hat = mod.sm.ie$gamma)
   
   lengths <- c(lengths, mod.sm.wb$cis2[2] - mod.sm.wb$cis2[1]) # constant coefficient
   
 }
 
+tikz('mort_sa_tau75.tex', width = 4, height = 3, standAlone = TRUE)
 plot(cs, lengths, xlab = '$c$', ylab = 'Length',
+     ylim = c(0, 0.90),
      type = 'b', col = 'deepskyblue',
      main = 'Sensitivity Analysis ($\\tau = 0.75$)')
+dev.off()
+
 
 ### bandwidth
-h.de <- 2 * tau * (1 - tau) * ((1 + dim(Q2)[2] * 4 + log(n)) / n) ^ (2/5)
+h.de <- 3 * tau * (1 - tau) * ((3 + dim(Q2)[2] * 2 + log(n)) / n) ^ (2/5)
 
 
-### tuning parameter selection for smoothed QSVCM
-lambda_SQBiT <- SQBiT_tune(Y = Y, X = X, C = C,  
-                           P = P, B = B, Q2 = Q2,  
-                           h = h.de, tau = tau, 
-                           lambda_start = 1e-4, lambda_end = 1e1,
-                           nlambda = 10, new.nlambda = 10, 
-                           lambda.scale = 100) 
+### tuning parameter selection for SQBiT
+lambda_SQBiT <- SQBiT_cv(Y = Y, X = X, C = C,  
+                         P = P, B = B, Q2 = Q2,  
+                         h = h.de, tau = tau, 
+                         lambda_start = 1e-4, lambda_end = 1e1,
+                         nlambda = 10, new.nlambda = 10, 
+                         lambda.scale = 100) 
 
 # tensor product QR
 tpqr.mod <- tpqr.plm(Y = Y, C = C, X = X, S = S, d = 3, tau = tau,
@@ -172,22 +179,26 @@ p <- ncol(X)
 Jn <- dim(BQ2)[2] 
 
 
-# interval estimation
+################################################# interval estimation
 mod.sm.ie <- SQBiT(h = h.de, C = C, Y = Y, X = X, B = B, P = P, Q2 = Q2,
-                   tau = tau, lambda = matrix(lambda_SQBiT$lambda, ncol = 4), 
+                   tau = tau, lambda = matrix(lambda_SQBiT$lambda, ncol = ncol(X)), 
                    var.j = FALSE, adaptive.h = FALSE,
                    interval = TRUE) 
 
+## fitted values
+y.fit <- C %*% matrix(mod.sm.ie$eta)
+for (j in 1:ncol(X)) {
+  y.fit <- y.fit + X[, j] * mod.sm.ie$beta[, j]
+}
+write.csv(cbind(S, y.fit), 'fit_tau75.csv')
 
-# wild bootstrap for interval estimation of varying coefficient
+############################### wild bootstrap for interval estimation of varying coefficient
 set.seed(666)
 
-mod.sm.wb <- smqsvcm_admm.wb(h = h.de, tau = tau, Y = Y, C = C, X = X, P = P, B = B, Q2 = Q2, eta.j = .32,
-                             lambda = matrix(lambda_SQBiT$lambda, ncol = 4), 
-                             biascorr = FALSE,
-                             Br = 500, BQ2.eva = BQ2_pop, max.iter = 200, 
-                             compute.vc = TRUE,
-                             gamma.hat = c(mod.sm.ie$eta, mod.sm.ie$gamma))
+mod.sm.wb <- SQBiT_wb(h = h.de, tau = tau, Y = Y, C = C, X = X, P = P, B = B, Q2 = Q2, eta.j = .32,
+                      lambda = matrix(lambda_SQBiT$lambda, ncol = ncol(X)), Br = 500, 
+                      biascorr = TRUE, BQ2.eva = BQ2_pop, max.iter = 200, compute.vc = TRUE,
+                      eta.hat = mod.sm.ie$eta, gamma.hat = mod.sm.ie$gamma)
 
 # interval estimates
 mod.sm.wb$cis2 # constant coefficient
@@ -221,8 +232,6 @@ Index <- match(data.frame(t(SS_pop)), data.frame(t(uvpop)))
 
 # limits
 zlims <- rbind(c(.5, 1.5),
-               c(-.15, .15),
-               c(-.15, .15),
                c(-.15, .15))
 
 # coefficient plots
@@ -230,8 +239,8 @@ options(tikzLatexPackages
         = c(getOption( "tikzLatexPackages" ),
             "\\usepackage{amsmath,amsfonts,amsthm, palatino, mathpazo}"))
 
-# SQPLSVCM
-for (i in 1:4) {
+# SQBiT
+for (i in 1:2) {
   tikz(paste0('heat75beta', i, 'sm.tex'), width = 6, height = 3, standAlone = TRUE)
   mhat_all.sm <- as.matrix(mhat_all.sm)
   Zpop <- matrix(NaN, dim(uvpop)[1], dim(mhat_all.sm)[2])
@@ -259,7 +268,7 @@ for (i in 1:4) {
   dev.off()
 }
 
-for (i in 1:4) {
+for (i in 1:2) {
   tikz(paste0('heat75beta', i, 'tps.tex'), width = 6, height = 3, standAlone = TRUE)
   mhat.tp <- as.matrix(mhat.tp)
   Zpop <- matrix(NaN, dim(uvpop)[1], dim(mhat.tp)[2])
@@ -287,7 +296,7 @@ for (i in 1:4) {
 }
 
 # lower bound
-for (i in 1:4) {
+for (i in 1:2) {
   tikz(paste0('heat75beta', i, 'smlb.tex'), width = 6, height = 3, standAlone = TRUE)
   mhat_all.sm_lb <- as.matrix(mhat_all.sm_lb)
   Zpop <- matrix(NaN, dim(uvpop)[1], dim(mhat_all.sm_lb)[2])
@@ -317,7 +326,7 @@ for (i in 1:4) {
 }
 
 # upper bound
-for (i in 1:4) {
+for (i in 1:2) {
   tikz(paste0('heat75beta', i, 'smub.tex'), width = 6, height = 3, standAlone = TRUE)
   mhat_all.sm_ub <- as.matrix(mhat_all.sm_ub)
   Zpop <- matrix(NaN, dim(uvpop)[1], dim(mhat_all.sm_ub)[2])
